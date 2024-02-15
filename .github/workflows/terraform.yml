@@ -21,9 +21,11 @@ jobs:
           unzip terraform_1.7.0_linux_amd64.zip
           sudo mv terraform /usr/local/bin/
 
-    #   - name: Terraform Format
-    #     id: fmt
-    #     run: terraform fmt -check
+      - name: Terraform Format
+        id: fmt
+        run: |
+            terraformm fmt
+            terraform fmt -check
 
       - name: Terraform Init
         id: init

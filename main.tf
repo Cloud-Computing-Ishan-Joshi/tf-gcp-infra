@@ -19,10 +19,10 @@ resource "google_compute_subnetwork" "db" {
 }
 
 resource "google_compute_route" "webapp" {
-  name        = var.route_name
-  dest_range  = var.route_dest_range
-  network     = google_compute_network.vpc.name
+  name             = var.route_name
+  dest_range       = var.route_dest_range
+  network          = google_compute_network.vpc.name
   next_hop_gateway = "default-internet-gateway"
-  priority    = 1000
-  tags        = ["webapp"]
+  priority         = 1000
+  tags             = ["webapp"]
 }
