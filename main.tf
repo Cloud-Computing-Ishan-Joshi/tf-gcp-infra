@@ -1,27 +1,37 @@
+variable "vpcs" {
+  description = "List of VPCs"
+  type        = list(string)
+  default     = ["vpc1"]
+}
+
 resource "google_compute_network" "vpc" {
-  name                    = var.vpc_name
+  for_each                = toset(var.vpcs)
+  name                    = each.key
   auto_create_subnetworks = false
   routing_mode            = "REGIONAL"
 }
 
 resource "google_compute_subnetwork" "webapp" {
-  name          = var.webapp_subnet_name
-  ip_cidr_range = var.webapp_subnet_cidr
-  network       = google_compute_network.vpc.self_link
+  for_each      = google_compute_network.vpc
+  name          = "${each.key}-webapp"
+  ip_cidr_range = "10.0.2.0/24"
+  network       = each.value.self_link
   region        = var.region
 }
 
 resource "google_compute_subnetwork" "db" {
-  name          = var.db_subnet_name
-  ip_cidr_range = var.db_subnet_cidr
-  network       = google_compute_network.vpc.self_link
+  for_each      = google_compute_network.vpc
+  name          = "${each.key}-db"
+  ip_cidr_range = "10.0.1.0/24"
+  network       = each.value.self_link
   region        = var.region
 }
 
 resource "google_compute_route" "webapp" {
-  name             = var.route_name
-  dest_range       = var.route_dest_range
-  network          = google_compute_network.vpc.name
+  for_each         = google_compute_network.vpc
+  name             = "${each.key}-route"
+  dest_range       = "0.0.0.0/0"
+  network          = each.value.name
   next_hop_gateway = "default-internet-gateway"
   priority         = 1000
   tags             = ["webapp"]
