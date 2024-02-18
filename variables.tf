@@ -1,14 +1,10 @@
-variable "project_id" {
-}
+variable "project_id" {}
 
-variable "region" {
-}
+variable "region" {}
 
+variable "credentials" {}
 
+variable "zone" {}
 
-variable "credentials" {
-}
-
-variable "zone" {
-  
-}
+variable "cidr1" {}
+variable "cidr2" {}
