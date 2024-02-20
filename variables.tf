@@ -6,5 +6,5 @@ variable "credentials" {}
 
 variable "zone" {}
 
-variable "cidr1" {}
-variable "cidr2" {}
+# variable "cidr1" {}
+# variable "cidr2" {}
