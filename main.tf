@@ -5,10 +5,11 @@ variable "vpcs" {
 }
 
 resource "google_compute_network" "vpc" {
-  for_each                = toset(var.vpcs)
-  name                    = each.key
-  auto_create_subnetworks = false
-  routing_mode            = "REGIONAL"
+  for_each                        = toset(var.vpcs)
+  name                            = each.key
+  auto_create_subnetworks         = false
+  routing_mode                    = "REGIONAL"
+  delete_default_routes_on_create = true
 }
 
 resource "google_compute_subnetwork" "webapp" {
@@ -30,7 +31,7 @@ resource "google_compute_subnetwork" "db" {
 resource "google_compute_route" "webapp" {
   for_each         = google_compute_network.vpc
   name             = "${each.key}-route"
-  dest_range       = "0.0.0.0/0"
+  dest_range       = var.route_dest_range
   network          = each.value.name
   next_hop_gateway = "default-internet-gateway"
   priority         = 1000
