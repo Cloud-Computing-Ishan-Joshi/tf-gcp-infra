@@ -1,4 +1,5 @@
 resource "google_compute_firewall" "allow_http" {
+
   for_each = google_compute_network.vpc
   name     = "allow-http"
   network  = each.value.self_link
@@ -21,6 +22,7 @@ resource "google_compute_firewall" "deny_all" {
   deny {
     protocol = "tcp"
     ports    = var.firewall_deny
+
   }
 
   deny {
@@ -32,6 +34,7 @@ resource "google_compute_firewall" "deny_all" {
 
   # depends_on = [google_compute_firewall.allow_http]
   target_tags = ["${each.key}-webapp"]
+
 }
 
 variable "vpcs" {
