@@ -1,7 +1,9 @@
 # tf-gcp-infra
 Cloud Computing Assignments
 
-## Assignement 3
+## Assignement 4
+
+VPCs and custom VM instance
 
 ## Steps:
 
