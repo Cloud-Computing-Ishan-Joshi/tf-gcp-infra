@@ -1,3 +1,36 @@
+resource "google_compute_firewall" "allow_http" {
+  name    = "allow-http"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["3000"]
+  }
+
+    source_ranges = ["0.0.0.0/0"]
+
+    target_tags = ["webapp"]
+}
+
+resource "google_compute_firewall" "deny_all" {
+  name    = "deny-all"
+  network = "default"
+
+  deny {
+    protocol = "tcp"
+    ports = ["22"]
+  }
+
+  deny {
+    protocol = "udp"
+    ports = ["22"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+
+    depends_on = [google_compute_firewall.allow_http]
+}
+
 variable "vpcs" {
   description = "List of VPCs"
   type        = list(string)
@@ -36,4 +69,28 @@ resource "google_compute_route" "webapp" {
   next_hop_gateway = "default-internet-gateway"
   priority         = 1000
   tags             = ["webapp"]
+}
+
+# Create a VM instance with custom image
+resource "google_compute_instance" "vm_instance_webapp" {
+  name         = var.vm_instance_name
+  machine_type = var.machine_type
+  zone         = var.zone
+
+  boot_disk {
+    # Use Custom Image
+    initialize_params {
+      image = "projects/${var.project_id}/global/images/${var.custom_image_name}"
+    }
+  }
+
+  network_interface {
+    # Use custom VPC and Subnet for network interface
+    network = google_compute_network.vpc[0].name
+    access_config {
+        // Ephemeral IP
+
+    }
+  }
+  tags = [ "webapp" ]
 }
