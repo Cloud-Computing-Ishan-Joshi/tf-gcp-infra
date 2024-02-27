@@ -99,7 +99,7 @@ variable "database_name" {
 }
 
 variable "db_user_name" {
-  default = "webapp"
+  default   = "webapp"
   sensitive = true
 }
 

@@ -1,7 +1,7 @@
 # tf-gcp-infra
 Cloud Computing Assignments
 
-## Assignement 4
+## Assignement 5
 
 VPCs and custom VM instance
 
@@ -36,7 +36,7 @@ References¶
 
 2. Terraform fmt
 
-`terraform fmmt`
+`terraform fmt`
 
 3. Terraform fmt -check to check the format
 
