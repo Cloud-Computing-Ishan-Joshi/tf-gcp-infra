@@ -11,7 +11,7 @@ variable "vpcs" {
 }
 
 resource "random_password" "db_password" {
-  length = 16
+  length  = 16
   special = true
 }
 
@@ -30,22 +30,22 @@ resource "google_compute_network" "vpc" {
 }
 
 resource "google_compute_global_address" "private_ip" {
-  for_each = google_compute_network.vpc
-  name     = "${each.key}-private-ip"
-  purpose  = var.private_ip_purpose
-  ip_version   = var.ip_version
-  address_type = var.address_type
+  for_each      = google_compute_network.vpc
+  name          = "${each.key}-private-ip"
+  purpose       = var.private_ip_purpose
+  ip_version    = var.ip_version
+  address_type  = var.address_type
   prefix_length = var.prefix_length
-  network  = each.value.self_link
+  network       = each.value.self_link
 
 }
 
 resource "google_service_networking_connection" "private_vpc_connection" {
-  for_each = google_compute_network.vpc
-  network  = each.value.self_link
-  service  = "servicenetworking.googleapis.com"
+  for_each                = google_compute_network.vpc
+  network                 = each.value.self_link
+  service                 = "servicenetworking.googleapis.com"
   reserved_peering_ranges = [google_compute_global_address.private_ip[each.key].name]
-  
+
   depends_on = [
     google_compute_global_address.private_ip
   ]
@@ -80,21 +80,20 @@ resource "google_compute_route" "webapp" {
 resource "google_sql_database_instance" "db_instance" {
   for_each = google_compute_network.vpc
   # random instance name
-  name     = "${each.key}-db-instance-${random_id.db_name_suffix.hex}"
-  region   = var.region
-  project  = var.project_id
+  name             = "${each.key}-db-instance-${random_id.db_name_suffix.hex}"
+  region           = var.region
+  project          = var.project_id
   database_version = var.db_version
-  depends_on = [google_service_networking_connection.private_vpc_connection]
+  depends_on       = [google_service_networking_connection.private_vpc_connection]
   settings {
-    tier = var.db_tier
+    tier                        = var.db_tier
     deletion_protection_enabled = var.deletion_protection_enabled
-    availability_type = var.db_availability_type
-    disk_type = var.db_disk_type
-    disk_size = var.db_disk_size
+    availability_type           = var.db_availability_type
+    disk_type                   = var.db_disk_type
+    disk_size                   = var.db_disk_size
     ip_configuration {
-      ipv4_enabled = var.ipv4_enabled
+      ipv4_enabled    = var.ipv4_enabled
       private_network = google_compute_network.vpc[each.key].self_link
-      # enable_private_path_for_google_cloud_services = var.enable_private_path_for_google_cloud_services
     }
   }
 }
@@ -139,37 +138,16 @@ resource "google_compute_instance" "vm_instance_webapp" {
     }
   }
   metadata = {
-    # Add startup script
-    # startup-script = <<-SCRIPT
-    # #! /bin/bash
-    
-    # # Generate .env file with database details from Terraform outputs
-    # # mkdir -p /var/env_webapp
-    # # check if .env exists, if not create it else dont overwrite it using echo > and >>
-    # # if [ ! -f /var/.env ]; then
-    # sudo touch /var/.env
-    # sudo echo "DB_HOST=${google_sql_database_instance.db_instance[each.key].private_ip_address}" | sudo tee -a /var/.env
-    # sudo echo "DB_USER=${google_sql_user.db_user[each.key].name}" | sudo tee -a /var/.env
-    # sudo echo "DB_PASSWORD=${google_sql_user.db_user[each.key].password}" | sudo tee -a /var/.env
-    # sudo echo "DB_NAME=${google_sql_database.db[each.key].name}" | sudo tee -a /var/.env
-    # sudo echo "NODE_ENV=test" | sudo tee -a /var/.env
-    # # fi
-
-    # sudo chmod 600 /var/.env
-    # sudo chown ${var.chown_user}:${var.chown_user} /var/.env
-    # # SCRIPT
-    # SCRIPT
-
     startup-script = templatefile("startup_script.sh", {
-      db_host = google_sql_database_instance.db_instance[each.key].private_ip_address,
-      db_user = google_sql_user.db_user[each.key].name,
+      db_host     = google_sql_database_instance.db_instance[each.key].private_ip_address,
+      db_user     = google_sql_user.db_user[each.key].name,
       db_password = google_sql_user.db_user[each.key].password,
-      db_name = google_sql_database.db[each.key].name
-      chown_user = var.chown_user
+      db_name     = google_sql_database.db[each.key].name
+      chown_user  = var.chown_user
     })
 
-  } 
-  
+  }
+
   tags = ["${each.key}-webapp", "http-server"]
 }
 
@@ -207,7 +185,6 @@ resource "google_compute_firewall" "deny_all" {
 
   source_ranges = [var.route_dest_range]
 
-  # depends_on = [google_compute_firewall.allow_http]
   target_tags = ["${each.key}-webapp"]
 
 }
