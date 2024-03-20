@@ -8,7 +8,7 @@ resource "google_project_service" "service_networking" {
 variable "vpcs" {
   description = "List of VPCs"
   type        = list(string)
-  default    = ["vpc1"]
+  default     = ["vpc1"]
 }
 
 resource "random_password" "db_password" {
@@ -61,12 +61,12 @@ resource "google_compute_route" "webapp" {
 resource "google_sql_database_instance" "db_instance" {
   for_each = google_compute_network.vpc
   # random instance name
-  name             = "${each.key}-db-instance-${random_id.db_name_suffix.hex}"
-  region           = var.region
-  project          = var.project_id
-  database_version = var.db_version
+  name                = "${each.key}-db-instance-${random_id.db_name_suffix.hex}"
+  region              = var.region
+  project             = var.project_id
+  database_version    = var.db_version
   deletion_protection = var.deletion_protection_enabled
-  depends_on       = [google_service_networking_connection.private_vpc_connection]
+  depends_on          = [google_service_networking_connection.private_vpc_connection]
   settings {
     tier                        = var.db_tier
     deletion_protection_enabled = var.deletion_protection_enabled
@@ -79,9 +79,9 @@ resource "google_sql_database_instance" "db_instance" {
     }
   }
   lifecycle {
-    ignore_changes = [ 
+    ignore_changes = [
       settings
-     ]
+    ]
   }
 }
 
@@ -127,7 +127,7 @@ resource "google_sql_user" "db_user" {
 
 #  Create a Service Account
 resource "google_service_account" "service_account" {
-  for_each = google_compute_network.vpc
+  for_each     = google_compute_network.vpc
   account_id   = "ops-agent-service-account-${each.key}"
   display_name = "OPS Agent Service Account for ${each.key}"
 }
@@ -135,23 +135,23 @@ resource "google_service_account" "service_account" {
 # Create a Binding for the Service Account for logging (writing and viewing), and monitoring (writing and viewing)
 resource "google_project_iam_member" "service_account_binding" {
   for_each = google_compute_network.vpc
-  role    = "roles/logging.admin"
-  member  = "serviceAccount:${google_service_account.service_account[each.key].email}"
-  project = var.project_id
+  role     = "roles/logging.admin"
+  member   = "serviceAccount:${google_service_account.service_account[each.key].email}"
+  project  = var.project_id
 }
 
 resource "google_project_iam_member" "service_account_binding_monitoring" {
   for_each = google_compute_network.vpc
-  role    = "roles/monitoring.metricWriter"
-  member  = "serviceAccount:${google_service_account.service_account[each.key].email}"
-  project = var.project_id
+  role     = "roles/monitoring.metricWriter"
+  member   = "serviceAccount:${google_service_account.service_account[each.key].email}"
+  project  = var.project_id
 }
 
 resource "google_project_iam_member" "service_account_binding_monitoring_view" {
   for_each = google_compute_network.vpc
-  role    = "roles/monitoring.viewer"
-  member  = "serviceAccount:${google_service_account.service_account[each.key].email}"
-  project = var.project_id
+  role     = "roles/monitoring.viewer"
+  member   = "serviceAccount:${google_service_account.service_account[each.key].email}"
+  project  = var.project_id
 }
 
 # Create a VM instance with custom image
@@ -202,12 +202,12 @@ resource "google_compute_instance" "vm_instance_webapp" {
 
 # Create a DNS record for the VM instance
 resource "google_dns_record_set" "webapp_dns" {
-  for_each = google_compute_network.vpc
-  name     = var.dns_name
-  type     = var.dns_type
-  ttl      = var.dns_ttl
+  for_each     = google_compute_network.vpc
+  name         = var.dns_name
+  type         = var.dns_type
+  ttl          = var.dns_ttl
   managed_zone = var.dns_managed_zone
-  rrdatas = [google_compute_instance.vm_instance_webapp[each.key].network_interface[0].access_config[0].nat_ip]
+  rrdatas      = [google_compute_instance.vm_instance_webapp[each.key].network_interface[0].access_config[0].nat_ip]
 }
 
 # Create a firewall rule
