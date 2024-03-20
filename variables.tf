@@ -55,6 +55,10 @@ variable "image_type" {
   default = "pd-standard"
 }
 
+variable "vm_service_account_scopes" {
+  default = ["https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write"]
+}
+
 # DNS configuration
 
 variable "dns_name" {}

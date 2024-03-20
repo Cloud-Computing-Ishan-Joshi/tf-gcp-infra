@@ -192,7 +192,7 @@ resource "google_compute_instance" "vm_instance_webapp" {
 
   service_account {
     email  = google_service_account.service_account[each.key].email
-    scopes = ["https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write"]
+    scopes = var.vm_service_account_scopes
   }
 
   # depends_on = [ google_sql_database_instance.db_instance[each.key], google_sql_user.db_user[each.key], google_sql_database.db[each.key], google_service_account.service_account[each.key] ]
@@ -228,25 +228,25 @@ resource "google_compute_firewall" "allow_http" {
   target_tags = ["${each.key}-webapp", "http-server"]
 }
 
-# resource "google_compute_firewall" "deny_all" {
-#   for_each = google_compute_network.vpc
-#   name     = "deny-all"
-#   network  = each.value.self_link
+resource "google_compute_firewall" "deny_all" {
+  for_each = google_compute_network.vpc
+  name     = "deny-all"
+  network  = each.value.self_link
 
-#   deny {
-#     protocol = "tcp"
-#     ports    = var.firewall_deny
+  deny {
+    protocol = "tcp"
+    ports    = var.firewall_deny
 
-#   }
+  }
 
-#   deny {
-#     protocol = "udp"
-#     ports    = var.firewall_deny
-#   }
+  deny {
+    protocol = "udp"
+    ports    = var.firewall_deny
+  }
 
-#   source_ranges = [var.route_dest_range]
+  source_ranges = [var.route_dest_range]
 
-#   target_tags = ["${each.key}-webapp"]
+  target_tags = ["${each.key}-webapp"]
 
-# }
+}
 
