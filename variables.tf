@@ -34,6 +34,10 @@ variable "prefix_length" {
   default = 16
 }
 
+variable "prevent_destroy" {
+  default = false
+}
+
 
 # VM Instance
 
@@ -51,6 +55,19 @@ variable "image_type" {
   default = "pd-standard"
 }
 
+# DNS configuration
+
+variable "dns_name" {}
+
+variable "dns_type" {
+  default = "A"
+}
+
+variable "dns_ttl" {
+  default = 300
+}
+
+variable "dns_managed_zone" {}
 
 # Firewall configuration
 variable "firewall_deny" {

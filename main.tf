@@ -1,3 +1,4 @@
+# Create a VPC with custom subnet
 
 resource "google_project_service" "service_networking" {
   project = var.project_id
@@ -7,7 +8,7 @@ resource "google_project_service" "service_networking" {
 variable "vpcs" {
   description = "List of VPCs"
   type        = list(string)
-  default     = ["vpc1"]
+  default    = ["vpc1"]
 }
 
 resource "random_password" "db_password" {
@@ -27,28 +28,6 @@ resource "google_compute_network" "vpc" {
   delete_default_routes_on_create = true
 
   depends_on = [google_project_service.service_networking]
-}
-
-resource "google_compute_global_address" "private_ip" {
-  for_each      = google_compute_network.vpc
-  name          = "${each.key}-private-ip"
-  purpose       = var.private_ip_purpose
-  ip_version    = var.ip_version
-  address_type  = var.address_type
-  prefix_length = var.prefix_length
-  network       = each.value.self_link
-
-}
-
-resource "google_service_networking_connection" "private_vpc_connection" {
-  for_each                = google_compute_network.vpc
-  network                 = each.value.self_link
-  service                 = "servicenetworking.googleapis.com"
-  reserved_peering_ranges = [google_compute_global_address.private_ip[each.key].name]
-
-  depends_on = [
-    google_compute_global_address.private_ip
-  ]
 }
 
 resource "google_compute_subnetwork" "webapp" {
@@ -77,6 +56,8 @@ resource "google_compute_route" "webapp" {
   tags             = ["${each.key}-webapp"]
 }
 
+# Create a Cloud SQL instance
+
 resource "google_sql_database_instance" "db_instance" {
   for_each = google_compute_network.vpc
   # random instance name
@@ -84,6 +65,7 @@ resource "google_sql_database_instance" "db_instance" {
   region           = var.region
   project          = var.project_id
   database_version = var.db_version
+  deletion_protection = var.deletion_protection_enabled
   depends_on       = [google_service_networking_connection.private_vpc_connection]
   settings {
     tier                        = var.db_tier
@@ -96,6 +78,37 @@ resource "google_sql_database_instance" "db_instance" {
       private_network = google_compute_network.vpc[each.key].self_link
     }
   }
+  lifecycle {
+    ignore_changes = [ 
+      settings
+     ]
+  }
+}
+
+# Create VPC Peering Connection between VPC and Cloud SQL
+resource "google_compute_global_address" "private_ip" {
+  for_each      = google_compute_network.vpc
+  name          = "${each.key}-private-ip"
+  purpose       = var.private_ip_purpose
+  ip_version    = var.ip_version
+  address_type  = var.address_type
+  prefix_length = var.prefix_length
+  network       = each.value.self_link
+  lifecycle {
+    prevent_destroy = false
+  }
+
+}
+
+resource "google_service_networking_connection" "private_vpc_connection" {
+  for_each                = google_compute_network.vpc
+  network                 = each.value.self_link
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.private_ip[each.key].name]
+
+  depends_on = [
+    google_compute_global_address.private_ip
+  ]
 }
 
 
@@ -110,6 +123,35 @@ resource "google_sql_user" "db_user" {
   name     = var.db_user_name
   instance = google_sql_database_instance.db_instance[each.key].name
   password = random_password.db_password.result
+}
+
+#  Create a Service Account
+resource "google_service_account" "service_account" {
+  for_each = google_compute_network.vpc
+  account_id   = "ops-agent-service-account-${each.key}"
+  display_name = "OPS Agent Service Account for ${each.key}"
+}
+
+# Create a Binding for the Service Account for logging (writing and viewing), and monitoring (writing and viewing)
+resource "google_project_iam_member" "service_account_binding" {
+  for_each = google_compute_network.vpc
+  role    = "roles/logging.admin"
+  member  = "serviceAccount:${google_service_account.service_account[each.key].email}"
+  project = var.project_id
+}
+
+resource "google_project_iam_member" "service_account_binding_monitoring" {
+  for_each = google_compute_network.vpc
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.service_account[each.key].email}"
+  project = var.project_id
+}
+
+resource "google_project_iam_member" "service_account_binding_monitoring_view" {
+  for_each = google_compute_network.vpc
+  role    = "roles/monitoring.viewer"
+  member  = "serviceAccount:${google_service_account.service_account[each.key].email}"
+  project = var.project_id
 }
 
 # Create a VM instance with custom image
@@ -148,8 +190,27 @@ resource "google_compute_instance" "vm_instance_webapp" {
 
   }
 
+  service_account {
+    email  = google_service_account.service_account[each.key].email
+    scopes = ["https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write"]
+  }
+
+  # depends_on = [ google_sql_database_instance.db_instance[each.key], google_sql_user.db_user[each.key], google_sql_database.db[each.key], google_service_account.service_account[each.key] ]
+
   tags = ["${each.key}-webapp", "http-server"]
 }
+
+# Create a DNS record for the VM instance
+resource "google_dns_record_set" "webapp_dns" {
+  for_each = google_compute_network.vpc
+  name     = var.dns_name
+  type     = var.dns_type
+  ttl      = var.dns_ttl
+  managed_zone = var.dns_managed_zone
+  rrdatas = [google_compute_instance.vm_instance_webapp[each.key].network_interface[0].access_config[0].nat_ip]
+}
+
+# Create a firewall rule
 
 resource "google_compute_firewall" "allow_http" {
 
@@ -167,25 +228,25 @@ resource "google_compute_firewall" "allow_http" {
   target_tags = ["${each.key}-webapp", "http-server"]
 }
 
-resource "google_compute_firewall" "deny_all" {
-  for_each = google_compute_network.vpc
-  name     = "deny-all"
-  network  = each.value.self_link
+# resource "google_compute_firewall" "deny_all" {
+#   for_each = google_compute_network.vpc
+#   name     = "deny-all"
+#   network  = each.value.self_link
 
-  deny {
-    protocol = "tcp"
-    ports    = var.firewall_deny
+#   deny {
+#     protocol = "tcp"
+#     ports    = var.firewall_deny
 
-  }
+#   }
 
-  deny {
-    protocol = "udp"
-    ports    = var.firewall_deny
-  }
+#   deny {
+#     protocol = "udp"
+#     ports    = var.firewall_deny
+#   }
 
-  source_ranges = [var.route_dest_range]
+#   source_ranges = [var.route_dest_range]
 
-  target_tags = ["${each.key}-webapp"]
+#   target_tags = ["${each.key}-webapp"]
 
-}
+# }
 
