@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Ensure the directory exists
-mkdir -p /var/env_webapp
+mkdir -p /usr/env_webapp
 
 # Create or overwrite the .env file
-cat <<EOF > /var/env_webapp/.env
+cat <<EOF > /usr/env_webapp/.env
 DB_HOST=${db_host}
 DB_USER=${db_user}
 DB_PASSWORD=${db_password}
@@ -13,5 +13,8 @@ NODE_ENV=test
 EOF
 
 # Set permissions
-chmod 655 /var/env_webapp/.env
-chown ${chown_user}:${chown_user} /var/env_webapp/.env
+chmod 655 /usr/env_webapp/.env
+chown ${chown_user}:${chown_user} /usr/env_webapp/.env
+
+# Run the application service
+sudo systemctl start webapp
