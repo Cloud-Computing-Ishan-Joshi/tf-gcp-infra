@@ -9,7 +9,7 @@ DB_HOST=${db_host}
 DB_USER=${db_user}
 DB_PASSWORD=${db_password}
 DB_NAME=${db_name}
-NODE_ENV=test
+NODE_ENV=dev
 EOF
 
 # Set permissions
