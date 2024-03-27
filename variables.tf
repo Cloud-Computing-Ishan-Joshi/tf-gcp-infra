@@ -130,8 +130,8 @@ variable "chown_user" {
 
 
 # Cloud Function configuration
-variable "email_from"{}
+variable "email_from" {}
 
 variable "mailgun_api_key" {
-  
+
 }
