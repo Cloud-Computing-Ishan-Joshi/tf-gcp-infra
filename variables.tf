@@ -163,7 +163,7 @@ variable "zone_cloud_function" {
 }
 
 variable "entry_point_cloud_function" {
-  default = "verifyEmail"  
+  default = "verifyEmail"
 }
 
 variable "runtime_cloud_function" {
