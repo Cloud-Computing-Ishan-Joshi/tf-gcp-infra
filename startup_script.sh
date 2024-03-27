@@ -10,6 +10,8 @@ DB_USER=${db_user}
 DB_PASSWORD=${db_password}
 DB_NAME=${db_name}
 NODE_ENV=dev
+PROJECT_ID=${project_id}
+TOPIC_NAME=${topic_name}
 EOF
 
 # Set permissions
@@ -18,3 +20,4 @@ chown ${chown_user}:${chown_user} /usr/env_webapp/.env
 
 # Run the application service
 sudo systemctl start webapp
+sudo systemctl start google-cloud-ops-agent
