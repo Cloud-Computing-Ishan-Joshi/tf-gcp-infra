@@ -56,7 +56,7 @@ variable "image_type" {
 }
 
 variable "vm_service_account_scopes" {
-  default = ["https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write"]
+  default = ["https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/pubsub"]
 }
 
 # DNS configuration
@@ -126,4 +126,12 @@ variable "db_user_name" {
 
 variable "chown_user" {
   default = "csye6225"
+}
+
+
+# Cloud Function configuration
+variable "email_from"{}
+
+variable "mailgun_api_key" {
+  
 }
