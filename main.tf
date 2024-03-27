@@ -162,22 +162,6 @@ resource "google_project_iam_member" "service_account_binding_pubsub" {
   project  = var.project_id
 }
 
-# resource "google_pubsub_topic_iam_member" "publisher" {
-#   project = var.project_id
-#   topic   = google_pubsub_topic.verify_email[each.key].name
-#   role    = "roles/pubsub.publisher"
-#   member  = "serviceAccount:${google_cloudfunctions2_function.verify_email[each.key].service_account_email}"
-# }
-
-# resource "google_project_iam_member" "token_creator" {
-#   for_each = google_compute_network.vpc
-#   project  = var.project_id
-#   role     = "roles/iam.serviceAccountTokenCreator"
-#   member   = "serviceAccount:${google_service_account.service_account[each.key].email}"
-# }
-
-
-
 # Create a VM instance with custom image
 resource "google_compute_instance" "vm_instance_webapp" {
   for_each     = google_compute_network.vpc
@@ -221,8 +205,6 @@ resource "google_compute_instance" "vm_instance_webapp" {
     scopes = var.vm_service_account_scopes
   }
 
-  # depends_on = [ google_sql_database_instance.db_instance[each.key], google_sql_user.db_user[each.key], google_sql_database.db[each.key], google_service_account.service_account[each.key] ]
-
   tags = ["${each.key}-webapp", "http-server"]
 }
 
@@ -239,32 +221,9 @@ resource "google_dns_record_set" "webapp_dns" {
 # service account for cloud function and pubsub
 resource "google_service_account" "cloud_function_service_account" {
   for_each     = google_compute_network.vpc
-  account_id   = "cloud-function-service-account"
+  account_id   = var.cloud_function_service_account_name
   display_name = "Cloud Function Service Account for ${each.key}"
-  # email        = "cloud-function-service-account-${each.key}@${var.project_id}.iam.gserviceaccount.com"
 }
-
-# Create a Binding for the Service Account for logging (writing and viewing), and monitoring (writing and viewing)
-# resource "google_project_iam_member" "cloud_function_service_account_binding" {
-#   for_each = google_compute_network.vpc
-#   role     = "roles/logging.admin"
-#   member   = "serviceAccount:${google_service_account.cloud_function_service_account[each.key].email}"
-#   project  = var.project_id
-# }
-
-# resource "google_project_iam_member" "cloud_function_service_account_binding_monitoring" {
-#   for_each = google_compute_network.vpc
-#   role     = "roles/monitoring.metricWriter"
-#   member   = "serviceAccount:${google_service_account.cloud_function_service_account[each.key].email}"
-#   project  = var.project_id
-# }
-
-# resource "google_project_iam_member" "cloud_function_service_account_binding_monitoring_view" {
-#   for_each = google_compute_network.vpc
-#   role     = "roles/monitoring.viewer"
-#   member   = "serviceAccount:${google_service_account.cloud_function_service_account[each.key].email}"
-#   project  = var.project_id
-# }
 
 # Binding Pub/Sub Subscribe role to the service account
 resource "google_project_iam_member" "cloud_function_service_account_binding_pubsub" {
@@ -273,13 +232,6 @@ resource "google_project_iam_member" "cloud_function_service_account_binding_pub
   member   = "serviceAccount:${google_service_account.cloud_function_service_account[each.key].email}"
   project  = var.project_id
 }
-
-# resource "google_project_iam_member" "cloud_function_service_account_binding_token_creator" {
-#   for_each = google_compute_network.vpc
-#   project  = var.project_id
-#   role     = "roles/iam.serviceAccountTokenCreator"
-#   member   = "serviceAccount:${google_service_account.cloud_function_service_account[each.key].email}"
-# }
 
 resource "google_project_iam_member" "function_cloudsql_client" {
   for_each = google_compute_network.vpc
@@ -291,7 +243,7 @@ resource "google_project_iam_member" "function_cloudsql_client" {
 # Create a Pub/Sub topic
 resource "google_pubsub_topic" "verify_email" {
   for_each = google_compute_network.vpc
-  name     = "verify_email"
+  name     = var.pubsub_topic_name
 }
 
 # Create a Pub/Sub subscription
@@ -320,30 +272,11 @@ resource "google_storage_bucket_object" "archive" {
 }
 
 
-# Create a Cloud Function 2 gen to verify email and trigger type Pub/Sub topic
-# resource "google_cloudfunctions_function" "verify_email" {
-#   for_each = google_compute_network.vpc
-#   name        = "verify-email"
-#   description = "Verify Email"
-#   runtime     = "nodejs20"
-#   available_memory_mb = 128
-#   source_archive_bucket = google_storage_bucket.bucket[each.key].name
-#   source_archive_object = google_storage_bucket_object.archive[each.key].name
-#   entry_point = "verifyEmail"
-#   timeout = 60
-#   environment_variables = {
-#     PUBSUB_TOPIC = google_pubsub_topic.verify_email[each.key].name
-#   }
-#   event_trigger {
-#     event_type = "google.pubsub.topic.publish"
-#     resource   = google_pubsub_topic.verify_email[each.key].name
-#   }
-# }
-
+# Create a VPC Access Connector
 resource "google_vpc_access_connector" "serverless_vpc_connector" {
   for_each      = google_compute_network.vpc
   name          = "vpc-conn-${replace(lower(each.key), "_", "-")}"
-  ip_cidr_range = "10.8.0.0/28"
+  ip_cidr_range = var.cidr_vpc_access_connector
   network       = each.value.self_link
 }
 
@@ -352,10 +285,10 @@ resource "google_cloudfunctions2_function" "verify_email" {
   for_each    = google_compute_network.vpc
   name        = "verify-email-${each.key}"
   description = "Verify Email"
-  location    = "us-east1"
+  location    = var.zone_cloud_function
   build_config {
-    runtime     = "nodejs20"
-    entry_point = "verifyEmail"
+    runtime     = var.runtime_cloud_function
+    entry_point = var.entry_point_cloud_function
     source {
       storage_source {
         bucket = google_storage_bucket.bucket[each.key].name
@@ -365,7 +298,7 @@ resource "google_cloudfunctions2_function" "verify_email" {
   }
   service_config {
     max_instance_count = 1
-    available_memory   = "256M" # Adjust the memory value within the allowed range
+    available_memory   = var.available_memory_cloud_function
     timeout_seconds    = 60
     environment_variables = {
       PUBSUB_TOPIC    = google_pubsub_topic.verify_email[each.key].name
@@ -378,14 +311,14 @@ resource "google_cloudfunctions2_function" "verify_email" {
 
     }
     service_account_email = google_service_account.cloud_function_service_account[each.key].email
-    ingress_settings      = "ALLOW_INTERNAL_ONLY"
+    ingress_settings      = var.ingress_settings_cloud_function
     vpc_connector         = google_vpc_access_connector.serverless_vpc_connector[each.key].id
   }
   event_trigger {
-    trigger_region = "us-east1"
-    event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
+    trigger_region = var.zone_cloud_function
+    event_type     = var.event_type_cloud_function
     pubsub_topic   = google_pubsub_topic.verify_email[each.key].id
-    retry_policy   = "RETRY_POLICY_RETRY"
+    retry_policy   = var.retry_policy_cloud_function
   }
 
 
@@ -414,25 +347,25 @@ resource "google_compute_firewall" "allow_http" {
   target_tags = ["${each.key}-webapp", "http-server"]
 }
 
-# resource "google_compute_firewall" "deny_all" {
-#   for_each = google_compute_network.vpc
-#   name     = "deny-all"
-#   network  = each.value.self_link
+resource "google_compute_firewall" "deny_all" {
+  for_each = google_compute_network.vpc
+  name     = "deny-all"
+  network  = each.value.self_link
 
-#   deny {
-#     protocol = "tcp"
-#     ports    = var.firewall_deny
+  deny {
+    protocol = "tcp"
+    ports    = var.firewall_deny
 
-#   }
+  }
 
-#   deny {
-#     protocol = "udp"
-#     ports    = var.firewall_deny
-#   }
+  deny {
+    protocol = "udp"
+    ports    = var.firewall_deny
+  }
 
-#   source_ranges = [var.route_dest_range]
+  source_ranges = [var.route_dest_range]
 
-#   target_tags = ["${each.key}-webapp"]
+  target_tags = ["${each.key}-webapp"]
 
-# }
+}
 

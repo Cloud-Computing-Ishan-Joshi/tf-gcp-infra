@@ -128,10 +128,52 @@ variable "chown_user" {
   default = "csye6225"
 }
 
+# Serverless VPC
+variable "cidr_vpc_access_connector" {
+  default = "10.8.0.0/28"
+}
+
+# PubSub configuration
+
+variable "pubsub_topic_name" {
+  default = "verify_email"
+}
 
 # Cloud Function configuration
+
+variable "cloud_function_service_account_name" {
+  default = "cloud-function-service-account"
+}
+
 variable "email_from" {}
 
 variable "mailgun_api_key" {
+}
 
+variable "available_memory_cloud_function" {
+  default = "256M"
+}
+
+variable "ingress_settings_cloud_function" {
+  default = "ALLOW_INTERNAL_ONLY"
+}
+
+variable "zone_cloud_function" {
+  default = "us-east1"
+}
+
+variable "entry_point_cloud_function" {
+  default = "verifyEmail"  
+}
+
+variable "runtime_cloud_function" {
+  default = "nodejs20"
+}
+
+variable "event_type_cloud_function" {
+  default = "google.cloud.pubsub.topic.v1.messagePublished"
+}
+
+variable "retry_policy_cloud_function" {
+  default = "RETRY_POLICY_RETRY"
 }
