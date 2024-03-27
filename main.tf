@@ -299,7 +299,7 @@ resource "google_pubsub_subscription" "subscription" {
   for_each = google_compute_network.vpc
   name     = "verify_email_subscription"
   topic    = google_pubsub_topic.verify_email[each.key].name
-  depends_on = [ 
+  depends_on = [
     google_pubsub_topic.verify_email
   ]
 }
@@ -341,18 +341,18 @@ resource "google_storage_bucket_object" "archive" {
 # }
 
 resource "google_vpc_access_connector" "serverless_vpc_connector" {
-  for_each = google_compute_network.vpc
-  name     = "vpc-conn-${replace(lower(each.key), "_", "-")}"
+  for_each      = google_compute_network.vpc
+  name          = "vpc-conn-${replace(lower(each.key), "_", "-")}"
   ip_cidr_range = "10.8.0.0/28"
   network       = each.value.self_link
 }
 
 
 resource "google_cloudfunctions2_function" "verify_email" {
-  for_each = google_compute_network.vpc
-  name     = "verify-email-${each.key}"
+  for_each    = google_compute_network.vpc
+  name        = "verify-email-${each.key}"
   description = "Verify Email"
-  location = "us-east1"
+  location    = "us-east1"
   build_config {
     runtime     = "nodejs20"
     entry_point = "verifyEmail"
@@ -368,18 +368,18 @@ resource "google_cloudfunctions2_function" "verify_email" {
     available_memory   = "256M" # Adjust the memory value within the allowed range
     timeout_seconds    = 60
     environment_variables = {
-      PUBSUB_TOPIC = google_pubsub_topic.verify_email[each.key].name
-      EMAIL_FROM = var.email_from
+      PUBSUB_TOPIC    = google_pubsub_topic.verify_email[each.key].name
+      EMAIL_FROM      = var.email_from
       MAILGUN_API_KEY = var.mailgun_api_key
-      DB_USER = google_sql_user.db_user[each.key].name
-      DB_PASS = google_sql_user.db_user[each.key].password
-      DB_HOST = google_sql_database_instance.db_instance[each.key].private_ip_address
-      DB_NAME = google_sql_database.db[each.key].name
+      DB_USER         = google_sql_user.db_user[each.key].name
+      DB_PASS         = google_sql_user.db_user[each.key].password
+      DB_HOST         = google_sql_database_instance.db_instance[each.key].private_ip_address
+      DB_NAME         = google_sql_database.db[each.key].name
 
     }
     service_account_email = google_service_account.cloud_function_service_account[each.key].email
-    ingress_settings = "ALLOW_INTERNAL_ONLY"
-    vpc_connector    = google_vpc_access_connector.serverless_vpc_connector[each.key].id
+    ingress_settings      = "ALLOW_INTERNAL_ONLY"
+    vpc_connector         = google_vpc_access_connector.serverless_vpc_connector[each.key].id
   }
   event_trigger {
     trigger_region = "us-east1"
