@@ -37,6 +37,10 @@ variable "prefix_length" {
 variable "prevent_destroy" {
   default = false
 }
+variable "route_dest_range_load_balancer" {
+  type    = list(string) # Change to list
+  default = ["130.211.0.0/22", "35.191.0.0/16"]
+}
 
 
 # VM Instance
@@ -57,6 +61,107 @@ variable "image_type" {
 
 variable "vm_service_account_scopes" {
   default = ["https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/pubsub"]
+}
+
+# VM Instance Template
+variable "check_interval_sec" {
+  default = 60
+}
+
+variable "timeout_sec" {
+  default = 60
+}
+
+variable "healthy_threshold" {
+  default = 3
+}
+
+variable "unhealthy_threshold" {
+  default = 5
+}
+
+variable "https_health_check_port" {
+  default = 3000
+}
+
+variable "https_health_check_request_path" {
+  default = "/healthz"
+}
+
+# Compute Instance Group
+variable "base_instance_name" {
+  default = "webapp"
+}
+
+variable "target_size" {
+  default = 3
+}
+
+variable "instance_group_named_port_name" {
+  default = "http"
+}
+variable "named_port" {
+  default = 3000
+}
+
+variable "initial_delay_sec" {
+  default = 300
+}
+
+# Manage Autoscaler
+variable "max_replicas" {
+  default = 6
+}
+
+variable "autoscalar_port" {
+  default = 3000
+}
+
+variable "min_replicas" {
+  default = 3
+}
+
+variable "cooldown_period" {
+  default = 60
+}
+
+variable "cpu_utilization_target" {
+  default = 0.05
+}
+
+# Load Balancer
+variable "load_balancing_scheme" {
+  default = "EXTERNAL"
+}
+
+variable "forwarding_rule_ip_protocol" {
+  default = "TCP"
+}
+
+variable "forwarding_rule_port_range" {
+  default = "443"
+}
+
+# Backend Service
+
+variable "backend_service_protocol" {
+  default = "HTTP"
+}
+
+variable "backend_service_port_name" {
+  default = "http"
+}
+
+variable "backend_service_balancing_mode" {
+  default = "UTILIZATION"
+}
+
+variable "backend_service_capacity_scaler" {
+  default = 1.0
+}
+
+variable "backend_service_max_utilization" {
+  default = 0.05
 }
 
 # DNS configuration
@@ -176,4 +281,8 @@ variable "event_type_cloud_function" {
 
 variable "retry_policy_cloud_function" {
   default = "RETRY_POLICY_RETRY"
+}
+
+variable "webapp_url" {
+  default = "https://ishanjoshicloud.me/v1/user/self"
 }
