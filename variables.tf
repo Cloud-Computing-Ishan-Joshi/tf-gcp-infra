@@ -48,6 +48,9 @@ variable "route_dest_range_load_balancer" {
 
 # KMS configuration
 
+variable "key_ring_number" {
+  default = 5
+}
 variable "purpose_crypto_key" {
   default = "ENCRYPT_DECRYPT"
 }

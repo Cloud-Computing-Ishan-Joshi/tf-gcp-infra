@@ -66,7 +66,7 @@ resource "google_compute_route" "webapp" {
 # Create a Custom Key Ring
 resource "google_kms_key_ring" "key_ring" {
   for_each = google_compute_network.vpc
-  name     = "${each.key}-key-ring4"
+  name     = "${each.key}-key-ring${var.key_ring_number}"
   location = var.region
 }
 
