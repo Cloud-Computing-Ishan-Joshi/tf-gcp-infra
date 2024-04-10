@@ -72,10 +72,10 @@ resource "google_kms_key_ring" "key_ring" {
 
 # Create a Custom Crypto Key for VM instance
 resource "google_kms_crypto_key" "crypto_key_vm" {
-  for_each      = google_compute_network.vpc
-  name         = "${each.key}-vm-crypto-key"
-  purpose = var.purpose_crypto_key 
-  key_ring     = google_kms_key_ring.key_ring[each.key].id
+  for_each        = google_compute_network.vpc
+  name            = "${each.key}-vm-crypto-key"
+  purpose         = var.purpose_crypto_key
+  key_ring        = google_kms_key_ring.key_ring[each.key].id
   rotation_period = var.rotation_period_crypto_key
   lifecycle {
     create_before_destroy = true
@@ -84,10 +84,10 @@ resource "google_kms_crypto_key" "crypto_key_vm" {
 
 # Create a Custom Crypto Key for Cloud SQL
 resource "google_kms_crypto_key" "crypto_key_db" {
-  for_each      = google_compute_network.vpc
-  name         = "${each.key}-db-crypto-key"
-  purpose = "ENCRYPT_DECRYPT"
-  key_ring     = google_kms_key_ring.key_ring[each.key].id
+  for_each = google_compute_network.vpc
+  name     = "${each.key}-db-crypto-key"
+  purpose  = "ENCRYPT_DECRYPT"
+  key_ring = google_kms_key_ring.key_ring[each.key].id
   # key_ring     = "projects/${var.project_id}/locations/${var.region}/keyRings/vpc2-key-ring"
   rotation_period = var.rotation_period_crypto_key
   lifecycle {
@@ -97,21 +97,21 @@ resource "google_kms_crypto_key" "crypto_key_db" {
 
 # Create a Custom Crypto Key for Bucket
 resource "google_kms_crypto_key" "crypto_key_bucket" {
-  for_each      = google_compute_network.vpc
-  name         = "${each.key}-bucket-crypto-key"
-  purpose = "ENCRYPT_DECRYPT"
-  key_ring     = google_kms_key_ring.key_ring[each.key].id
+  for_each        = google_compute_network.vpc
+  name            = "${each.key}-bucket-crypto-key"
+  purpose         = "ENCRYPT_DECRYPT"
+  key_ring        = google_kms_key_ring.key_ring[each.key].id
   rotation_period = var.rotation_period_crypto_key
   lifecycle {
     create_before_destroy = true
-  } 
+  }
 }
 
 # Create a Cloud SQL service account for KMS key
 resource "google_project_service_identity" "gcp_sa_cloud_sql" {
   provider = google-beta
-  project = var.project_id
-  service = "sqladmin.googleapis.com"
+  project  = var.project_id
+  service  = "sqladmin.googleapis.com"
 }
 resource "google_kms_crypto_key_iam_binding" "crypto_key_db" {
   for_each      = google_compute_network.vpc
@@ -134,7 +134,7 @@ resource "google_sql_database_instance" "db_instance" {
   database_version    = var.db_version
   deletion_protection = var.deletion_protection_enabled
   encryption_key_name = google_kms_crypto_key.crypto_key_db[each.key].id
-  depends_on          = [google_service_networking_connection.private_vpc_connection, google_kms_crypto_key_iam_binding.crypto_key_db]  
+  depends_on          = [google_service_networking_connection.private_vpc_connection, google_kms_crypto_key_iam_binding.crypto_key_db]
   settings {
     tier                        = var.db_tier
     deletion_protection_enabled = var.deletion_protection_enabled
@@ -325,7 +325,7 @@ resource "google_kms_crypto_key_iam_binding" "binding_vm_disk_key" {
   for_each      = google_compute_network.vpc
   crypto_key_id = google_kms_crypto_key.crypto_key_vm[each.key].id
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  members = ["serviceAccount:service-${data.google_project.current.number}@compute-system.iam.gserviceaccount.com"]
+  members       = ["serviceAccount:service-${data.google_project.current.number}@compute-system.iam.gserviceaccount.com"]
 }
 
 # Create a VM Instance template with custom image
@@ -636,17 +636,17 @@ resource "google_storage_bucket" "bucket" {
     default_kms_key_name = google_kms_crypto_key.crypto_key_bucket[each.key].id
   }
 
-  depends_on = [ 
+  depends_on = [
     google_kms_crypto_key_iam_member.gcs_kms_binding
-   ]
-  
+  ]
+
 }
 
 resource "google_storage_bucket_object" "archive" {
-  for_each = google_compute_network.vpc
-  name     = "archive.zip"
-  bucket   = google_storage_bucket.bucket[each.key].name
-  source   = "../CloudFunction/code.zip"
+  for_each     = google_compute_network.vpc
+  name         = "archive.zip"
+  bucket       = google_storage_bucket.bucket[each.key].name
+  source       = "../CloudFunction/code.zip"
   kms_key_name = google_kms_crypto_key.crypto_key_bucket[each.key].id
 }
 
@@ -752,7 +752,7 @@ resource "google_compute_firewall" "deny_all" {
 # Secret Manager
 
 resource "google_secret_manager_secret" "db_host" {
-  for_each = google_compute_network.vpc
+  for_each  = google_compute_network.vpc
   secret_id = "db-host-${each.key}"
 
   replication {
@@ -765,13 +765,13 @@ resource "google_secret_manager_secret" "db_host" {
 }
 
 resource "google_secret_manager_secret_version" "db_host" {
-  for_each = google_compute_network.vpc
-  secret = google_secret_manager_secret.db_host[each.key].id
+  for_each    = google_compute_network.vpc
+  secret      = google_secret_manager_secret.db_host[each.key].id
   secret_data = google_sql_database_instance.db_instance[each.key].private_ip_address
 }
 
 resource "google_secret_manager_secret" "db_password" {
-  for_each = google_compute_network.vpc
+  for_each  = google_compute_network.vpc
   secret_id = "db-password-${each.key}"
 
   replication {
@@ -784,13 +784,13 @@ resource "google_secret_manager_secret" "db_password" {
 }
 
 resource "google_secret_manager_secret_version" "db_password" {
-  for_each = google_compute_network.vpc
-  secret = google_secret_manager_secret.db_password[each.key].id
+  for_each    = google_compute_network.vpc
+  secret      = google_secret_manager_secret.db_password[each.key].id
   secret_data = random_password.db_password.result
 }
 
 resource "google_secret_manager_secret" "vm_kms_key" {
-  for_each = google_compute_network.vpc
+  for_each  = google_compute_network.vpc
   secret_id = "vm-kms-key-${each.key}"
 
   replication {
@@ -803,8 +803,8 @@ resource "google_secret_manager_secret" "vm_kms_key" {
 }
 
 resource "google_secret_manager_secret_version" "vm_kms_key" {
-  for_each = google_compute_network.vpc
-  secret = google_secret_manager_secret.vm_kms_key[each.key].id
+  for_each    = google_compute_network.vpc
+  secret      = google_secret_manager_secret.vm_kms_key[each.key].id
   secret_data = google_kms_crypto_key.crypto_key_vm[each.key].id
 }
 
