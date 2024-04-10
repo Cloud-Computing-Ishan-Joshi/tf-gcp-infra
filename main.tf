@@ -1,5 +1,4 @@
 # Create a VPC with custom subnet
-
 resource "google_project_service" "service_networking" {
   project = var.project_id
   service = "servicenetworking.googleapis.com"
@@ -8,17 +7,25 @@ resource "google_project_service" "service_networking" {
 variable "vpcs" {
   description = "List of VPCs"
   type        = list(string)
-  default     = ["vpc1"]
+  default     = ["vpc2"]
+}
+
+variable "random_number" {
+  description = "Random number"
+  type        = number
+  default     = 20
 }
 
 resource "random_password" "db_password" {
   length  = 16
-  special = true
+  special = var.random_special
 }
 
 resource "random_id" "db_name_suffix" {
   byte_length = 8
 }
+
+
 
 resource "google_compute_network" "vpc" {
   for_each                        = toset(var.vpcs)
@@ -56,8 +63,68 @@ resource "google_compute_route" "webapp" {
   tags             = ["${each.key}-webapp"]
 }
 
-# Create a Cloud SQL instance
+# Create a Custom Key Ring
+resource "google_kms_key_ring" "key_ring" {
+  for_each = google_compute_network.vpc
+  name     = "${each.key}-key-ring4"
+  location = var.region
+}
 
+# Create a Custom Crypto Key for VM instance
+resource "google_kms_crypto_key" "crypto_key_vm" {
+  for_each      = google_compute_network.vpc
+  name         = "${each.key}-vm-crypto-key"
+  purpose = var.purpose_crypto_key 
+  key_ring     = google_kms_key_ring.key_ring[each.key].id
+  rotation_period = var.rotation_period_crypto_key
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# Create a Custom Crypto Key for Cloud SQL
+resource "google_kms_crypto_key" "crypto_key_db" {
+  for_each      = google_compute_network.vpc
+  name         = "${each.key}-db-crypto-key"
+  purpose = "ENCRYPT_DECRYPT"
+  key_ring     = google_kms_key_ring.key_ring[each.key].id
+  # key_ring     = "projects/${var.project_id}/locations/${var.region}/keyRings/vpc2-key-ring"
+  rotation_period = var.rotation_period_crypto_key
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# Create a Custom Crypto Key for Bucket
+resource "google_kms_crypto_key" "crypto_key_bucket" {
+  for_each      = google_compute_network.vpc
+  name         = "${each.key}-bucket-crypto-key"
+  purpose = "ENCRYPT_DECRYPT"
+  key_ring     = google_kms_key_ring.key_ring[each.key].id
+  rotation_period = var.rotation_period_crypto_key
+  lifecycle {
+    create_before_destroy = true
+  } 
+}
+
+# Create a Cloud SQL service account for KMS key
+resource "google_project_service_identity" "gcp_sa_cloud_sql" {
+  provider = google-beta
+  project = var.project_id
+  service = "sqladmin.googleapis.com"
+}
+resource "google_kms_crypto_key_iam_binding" "crypto_key_db" {
+  for_each      = google_compute_network.vpc
+  crypto_key_id = google_kms_crypto_key.crypto_key_db[each.key].id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = [
+    "serviceAccount:${google_project_service_identity.gcp_sa_cloud_sql.email}",
+  ]
+}
+
+
+# Create a Cloud SQL instance
 resource "google_sql_database_instance" "db_instance" {
   for_each = google_compute_network.vpc
   # random instance name
@@ -66,7 +133,8 @@ resource "google_sql_database_instance" "db_instance" {
   project             = var.project_id
   database_version    = var.db_version
   deletion_protection = var.deletion_protection_enabled
-  depends_on          = [google_service_networking_connection.private_vpc_connection]
+  encryption_key_name = google_kms_crypto_key.crypto_key_db[each.key].id
+  depends_on          = [google_service_networking_connection.private_vpc_connection, google_kms_crypto_key_iam_binding.crypto_key_db]  
   settings {
     tier                        = var.db_tier
     deletion_protection_enabled = var.deletion_protection_enabled
@@ -161,6 +229,13 @@ resource "google_project_iam_member" "service_account_binding_pubsub" {
   member   = "serviceAccount:${google_service_account.service_account[each.key].email}"
   project  = var.project_id
 }
+# Binding KMS CryptoKey Encrypter/Decrypter role to the service account
+resource "google_project_iam_member" "service_account_binding_kms" {
+  for_each = google_compute_network.vpc
+  role     = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member   = "serviceAccount:${google_service_account.service_account[each.key].email}"
+  project  = var.project_id
+}
 
 # Permissions for Using Google-managed SSL certificates
 # resource "google_project_iam_member" "service_account_binding_ssl" {
@@ -231,6 +306,28 @@ resource "google_project_iam_member" "service_account_binding_pubsub" {
 #   tags = ["${each.key}-webapp", "http-server"]
 # }
 
+data "google_compute_default_service_account" "default" {
+  project = var.project_id
+}
+
+resource "google_kms_crypto_key_iam_member" "compute_engine_kms_binding" {
+  for_each      = google_compute_network.vpc
+  crypto_key_id = google_kms_crypto_key.crypto_key_vm[each.key].id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = "serviceAccount:${data.google_compute_default_service_account.default.email}"
+}
+
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
+resource "google_kms_crypto_key_iam_binding" "binding_vm_disk_key" {
+  for_each      = google_compute_network.vpc
+  crypto_key_id = google_kms_crypto_key.crypto_key_vm[each.key].id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  members = ["serviceAccount:service-${data.google_project.current.number}@compute-system.iam.gserviceaccount.com"]
+}
+
 # Create a VM Instance template with custom image
 resource "google_compute_region_instance_template" "webapp_template" {
   for_each     = google_compute_network.vpc
@@ -243,6 +340,9 @@ resource "google_compute_region_instance_template" "webapp_template" {
     boot         = true
     disk_size_gb = var.image_size
     disk_type    = var.image_type
+    disk_encryption_key {
+      kms_key_self_link = google_kms_crypto_key.crypto_key_vm[each.key].id
+    }
   }
 
   network_interface {
@@ -506,12 +606,40 @@ resource "google_pubsub_subscription" "subscription" {
   ]
 }
 
-# Create a Cloud Bucket for source code zip
+# Create Service Account for Bucket
+data "google_storage_project_service_account" "gcs_account" {
+  project = var.project_id
+}
 
+# IAM Binding for Bucket to use KMS key
+resource "google_kms_crypto_key_iam_member" "gcs_kms_binding" {
+  for_each      = google_compute_network.vpc
+  crypto_key_id = google_kms_crypto_key.crypto_key_bucket[each.key].id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = data.google_storage_project_service_account.gcs_account.member
+}
+
+resource "google_kms_crypto_key_iam_member" "gcs_kms_binding2" {
+  for_each      = google_compute_network.vpc
+  crypto_key_id = google_kms_crypto_key.crypto_key_bucket[each.key].id
+  role          = "roles/cloudkms.cryptoKeyEncrypter"
+  member        = data.google_storage_project_service_account.gcs_account.member
+}
+
+
+# Create a Cloud Bucket for source code zip
 resource "google_storage_bucket" "bucket" {
   for_each = google_compute_network.vpc
   name     = "${each.key}-source-code"
-  location = "US"
+  location = var.region
+  encryption {
+    default_kms_key_name = google_kms_crypto_key.crypto_key_bucket[each.key].id
+  }
+
+  depends_on = [ 
+    google_kms_crypto_key_iam_member.gcs_kms_binding
+   ]
+  
 }
 
 resource "google_storage_bucket_object" "archive" {
@@ -519,6 +647,7 @@ resource "google_storage_bucket_object" "archive" {
   name     = "archive.zip"
   bucket   = google_storage_bucket.bucket[each.key].name
   source   = "../CloudFunction/code.zip"
+  kms_key_name = google_kms_crypto_key.crypto_key_bucket[each.key].id
 }
 
 
@@ -618,5 +747,83 @@ resource "google_compute_firewall" "deny_all" {
 
   target_tags = ["${each.key}-webapp"]
 
+}
+
+# Secret Manager
+
+resource "google_secret_manager_secret" "db_host" {
+  for_each = google_compute_network.vpc
+  secret_id = "db-host-${each.key}"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+}
+
+resource "google_secret_manager_secret_version" "db_host" {
+  for_each = google_compute_network.vpc
+  secret = google_secret_manager_secret.db_host[each.key].id
+  secret_data = google_sql_database_instance.db_instance[each.key].private_ip_address
+}
+
+resource "google_secret_manager_secret" "db_password" {
+  for_each = google_compute_network.vpc
+  secret_id = "db-password-${each.key}"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+}
+
+resource "google_secret_manager_secret_version" "db_password" {
+  for_each = google_compute_network.vpc
+  secret = google_secret_manager_secret.db_password[each.key].id
+  secret_data = random_password.db_password.result
+}
+
+resource "google_secret_manager_secret" "vm_kms_key" {
+  for_each = google_compute_network.vpc
+  secret_id = "vm-kms-key-${each.key}"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+}
+
+resource "google_secret_manager_secret_version" "vm_kms_key" {
+  for_each = google_compute_network.vpc
+  secret = google_secret_manager_secret.vm_kms_key[each.key].id
+  secret_data = google_kms_crypto_key.crypto_key_vm[each.key].id
+}
+
+# set IAM Permissions for the service account of Packer
+resource "google_project_iam_binding" "service_account_binding" {
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
+
+  members = [
+    "serviceAccount:${var.packer_image_service_account_email}",
+  ]
+}
+
+resource "google_project_iam_binding" "service_account_binding2" {
+  project = var.project_id
+  role    = "roles/compute.networkAdmin"
+
+  members = [
+    "serviceAccount:${var.packer_image_service_account_email}",
+  ]
 }
 

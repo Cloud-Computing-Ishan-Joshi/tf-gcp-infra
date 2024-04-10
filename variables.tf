@@ -9,6 +9,10 @@ variable "zone" {}
 variable "cidr1" {}
 variable "cidr2" {}
 
+variable "random_special" {
+  default = false
+}
+
 variable "routing_mode" {
   default = "REGIONAL"
 }
@@ -42,6 +46,16 @@ variable "route_dest_range_load_balancer" {
   default = ["130.211.0.0/22", "35.191.0.0/16"]
 }
 
+# KMS configuration
+
+variable "purpose_crypto_key" {
+  default = "ENCRYPT_DECRYPT"
+}
+
+variable "rotation_period_crypto_key" {
+  # 30 days
+  default = "2592000s"
+}
 
 # VM Instance
 
@@ -110,7 +124,7 @@ variable "initial_delay_sec" {
 
 # Manage Autoscaler
 variable "max_replicas" {
-  default = 6
+  default = 3
 }
 
 variable "autoscalar_port" {
@@ -118,7 +132,7 @@ variable "autoscalar_port" {
 }
 
 variable "min_replicas" {
-  default = 3
+  default = 1
 }
 
 variable "cooldown_period" {
@@ -244,6 +258,12 @@ variable "pubsub_topic_name" {
   default = "verify_email"
 }
 
+# Bucket configuration
+
+variable "bucket_service_account_name" {
+  default = "bucket-service-account"
+}
+
 # Cloud Function configuration
 
 variable "cloud_function_service_account_name" {
@@ -286,3 +306,7 @@ variable "retry_policy_cloud_function" {
 variable "webapp_url" {
   default = "https://ishanjoshicloud.me/v1/user/self"
 }
+
+variable "packer_image_service_account_email" {
+  default = "ubuntu-vm-service-image@dev-1-415017.iam.gserviceaccount.com"
+} 
